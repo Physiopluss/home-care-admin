@@ -1,0 +1,13 @@
+{
+  "type": "service_account",
+  "project_id": "physiolushomecare",
+  "private_key_id": "a668443a1c946d3905e7141c39c942b658a3b79e",
+  "private_key": "-----BEGIN PRIVATE KEY-----\nMIIEvgIBADANBgkqhkiG9w0BAQEFAASCBKgwggSkAgEAAoIBAQDJ6DAZFxS1ZlQg\nzI9s95T2cNhvUdt479obFbr/IkNEPaA+Wu3lf05p97bSWuPrIyaQgtfLXQi8lU9r\nD3qRNW8A9sYcY1m0OcAnAaluTRZfEdZXMTpfI/CT8+iLr5oSnuuObPaotDcB7hc0\nwZQ0ShcJAyuE7lyYUuirqSa2uvlxtLGO25su2qjzXxXyDPzLGX/FW/LMLpS8uLzh\nhm6NjIkDbOsUdXswYkOow9xKzQEUgCP8mHEq7B4WbJxyC1YbAdj5YZQEZ0T9HL8R\n9qD682R1Oz04jxl6d6yWgG3Sub9uF4Nv9FCI5+Lioa9BrVDUwJw2xRrrg6pfMTvu\nyOLjojmPAgMBAAECggEACFuM6InE2OCffHjhoJUVaXR9jdev/Tv22OAq/8/Sd2Ss\nDJvrwdaYz4u3DNLbISr9uBJydEyP+NGfAMOA3O0YgMwconHKW/3eYliQEHmVNeI7\nIrWhWobWUomDur4a42JvEob+i57KGB5bssDzxyZTkpMhatZv2fsa/nmsZiv4xcGu\nNIKutITcBbflG4s6QluAK59dpP9cpL5rhgFihGGPXuZshqpIxi5Dm28lR9705SYj\nuY2nxSFoxswTV1rXRbOKu9+Oa+90Ls1JHhi1hCRCOVPSA0HGidoTq4QdeSk3xjk6\nUQWLWuxholfekPbMOY8lWuxQ76OtV0wS23pwmToeoQKBgQDn8MJhCeMqc04TScr+\nmrskwNaLE56PUOby5aPraoQWLoSyvdriWzSiyJQd+fdgSGx8WwoD7jKjI83LTmFa\nCn20U2kibtHTE3mQHTvc3s59QMMahIAc7cbBzZqjpyt8gKc9XRDn4l3GraqagA7/\n2WVhBibnntl/QHnno1qH+BsM6wKBgQDe2eGpf3MaJup34HgaWX9o6nGoO+cP1FDl\nRch+Ns4deuZjCmRLVQE4YgC3/dgfY/x4oJh+VoH2llyiKQttBx2oI3Oo5NOQulCt\nFtTZF6xrBMppJppUda7PiDg2FOFKwY646g8o47bmpqsMX5L0nnuR0A3x2bR+fJKW\nPj+KqeTM7QKBgEXuoa0Afi3edjv6k+oQXTzHp+hnEffEPN4fvzzL8Od/PyNlewmk\n1kn+kCo5pAyzyYH1MR/eQgZOVU5nY5LydtRYEer/3uP1i0GYjuQZicjaLflg2f/e\n8X6dr3KIhOQVJleqJ97CseOlmTrcQamCsr5+TFyp2Io1tovRBQraE83hAoGBAMF3\nB9h9Y7Cdfkop3jqJ3fl4Jsm1j2gHm18fkOo5rACd1GrA98cKee+37QXOYxUFWYZj\nbV+ovFUVvj+tQFUbq1xvwpYqaZ0okqdhvdDmI3IZC5vzvmF6dROIH7ybreaXWM8h\nq52E6yEcKjyosEybVY2FwMVoibCRdzTlv4Yi7hYVAoGBAIpKkPOGZgSbg9SmHmAb\nHZEJoJaJnfqwRsC1eXOpqDDkNZDmFPvmkbqxNZpqs8rTtfD4Hg23macvvpdWJKsI\nReH4WjHgGEDXAeQ2Sv6j7/VJqLLZ2dHA82tdNUxOjEFopYMJiSq6pVltHC1X2axh\nVi3y9oDCRuaE1nbTQoYQ1z6K\n-----END PRIVATE KEY-----\n",
+  "client_email": "firebase-adminsdk-fbsvc@physiolushomecare.iam.gserviceaccount.com",
+  "client_id": "107256601763819387325",
+  "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+  "token_uri": "https://oauth2.googleapis.com/token",
+  "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
+  "client_x509_cert_url": "https://www.googleapis.com/robot/v1/metadata/x509/firebase-adminsdk-fbsvc%40physiolushomecare.iam.gserviceaccount.com",
+  "universe_domain": "googleapis.com"
+}
