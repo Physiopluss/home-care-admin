@@ -236,9 +236,16 @@ async function ReturnUnreadChatCount(id, name) {
     return result.length > 0 ? result[0].unreadCount : 0;
 };
 
+
+formatToIsoMicroSeconds = (inputDate) => {
+    const date = new Date(inputDate)
+    const iso = date.toISOString();
+    return iso.replace('Z', '000')
+}
 module.exports = {
     ReturnUnreadChatCount,
     toArray,
+    formatToIsoMicroSeconds,
     UnreadChatsCount,
     UnreadNotificationCount
 

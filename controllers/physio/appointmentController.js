@@ -255,7 +255,6 @@ exports.getTodayAppointments = async (req, res) => {
 
 // Appointment Complete by physio
 exports.completeAppointment = async (req, res) => {
-    console.log(req.body);
 
     try {
         const {
@@ -275,8 +274,6 @@ exports.completeAppointment = async (req, res) => {
         }
 
         const appointment = await Appointment.findById(appointmentId);
-        console.log(appointment);
-
 
         if (!appointment) {
             return res.status(400).json({
@@ -285,8 +282,6 @@ exports.completeAppointment = async (req, res) => {
                 status: 400
             });
         }
-
-        console.log(req.body);
 
         if (appointment.otp === parseInt(otp)) {
 

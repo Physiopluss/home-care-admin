@@ -7,7 +7,7 @@ router.post('/verifyOtp', patientController.verifyOtp);
 router.get('/getPatientById', patientController.patientById);
 router.put('/updatePatient/:id', patientController.editProfile)
 router.get('/getPatientAppointments', patientController.getPatientAppointments);
-router.get('/getPatientTreatments', patientController.getPatientAppointments);
+router.get('/getPatientTreatments', patientController.getPatientTreatments);
 router.get('/singleAppointment', patientController.singleAppointment);
 router.get('/singleTreatment', patientController.singleTreatment);
 router.get('/getInvoice', patientController.getInvoice);
@@ -17,9 +17,9 @@ router.post('/coupon', patientController.GetCouponByCode);
 
 
 // appointment
-router.post('/cashAppointment', patientController.createAppointment);
-router.post('/addAppointment', patientController.createAppointmentRazorpay);
-router.post('/verifyPayment', patientController.verifyRazorpayPayment);
+router.post('/payAppointmentDayByCash', patientController.createAppointment);
+router.post('/payAppointmentDay', patientController.createAppointmentRazorpay);
+router.post('/verifyAppointmentPayment', patientController.verifyRazorpayPayment);
 router.get('/sendNotificationForTreatment', patientController.sendNotificationForTreatment)
 router.post('/payTreatmentDay', patientController.addTreatmentPayment);
 router.post('/verifyTreatmentPayment', patientController.verifyTreatmentPayment)

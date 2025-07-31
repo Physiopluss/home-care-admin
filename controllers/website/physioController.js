@@ -2782,10 +2782,8 @@ exports.requestRefund = async (req, res) => {
 
 
 exports.getAllPhysios = async (req, res) => {
-    console.log(req.query);
-
     try {
-        const { lng, lat, filter } = req.query;
+        const { lng, lat, filter, search } = req.query;
 
         if (!lng || !lat) {
             return res.status(400).json({
@@ -2801,81 +2799,82 @@ exports.getAllPhysios = async (req, res) => {
         const cacheKey = `getAllPhysios:${JSON.stringify({
             longitude: roundedLongitude,
             latitude: roundedLatitude,
-            filter
+            filter,
+            search,
         })}`;
 
-        // Uncomment to use cache
         const cachedData = await redisClient.get(cacheKey);
         if (cachedData) {
-            console.log("> Returning cached data");
             return res.json({
                 status: 200,
                 message: "Data returned from cache",
-                data: JSON.parse(cachedData)
+                data: JSON.parse(cachedData),
             });
         }
 
-        let matchConditions = {};
+        let matchConditions = {
+            accountStatus: 1,
+            isBlocked: false
+        };
+        let sortField = {};
+        let searchConditions = [];
+
         let city;
-        let CheckError = false;
-        let sortedPhysios = [];
-        let sortField = {}
-
-        // Add MPT filter
-
-
         try {
-
             city = await getCityFromCoordinates(lat, lng);
-            console.log("Resolved city from coordinates:", city);
-            matchConditions.accountStatus = 1;
-            matchConditions.isBlocked = false;
-            matchConditions.city = new RegExp("^" + city + "$", "i");
         } catch (error) {
-            console.warn("Failed to resolve city from coordinates, falling back to patient city.");
-            console.log(error);
-
-            // CheckError = true;
-            // city = thePatient.city || ' ';
-            // matchConditions.city = new RegExp("^" + city + "$", "i");
+            console.warn("City detection failed:", error.message);
         }
 
         if (!city || city.trim() === "") {
             return res.status(400).json({
-                message: "Unable to determine city from coordinates or patient profile",
+                message: "Unable to determine city from coordinates",
                 status: 400,
                 success: false,
             });
         }
 
-        if (filter) {
+        matchConditions.city = new RegExp(`^${city}$`, "i");
 
-            switch (filter) {
-                case "price":
-                    sortField['home.charges'] = filter === "price" ? -1 : 0;
-                    break;
+        if (search) {
+            searchConditions.push({ fullName: { $regex: search, $options: "i" } });
+            searchConditions.push({ "clinic.name": { $regex: search, $options: "i" } });
 
-                case "mpt":
-                    matchConditions.$or = [
-                        { mpt: true },
-                        { "mptDegree.degreeId": { $ne: null } }
-                    ];
-                    break;
-
-                case "rating":
-                    sortField['rating'] = filter === "rating" ? -1 : 0;
-                    break;
-                default:
-                    break;
+            if (/^\d{10}$/.test(search)) {
+                searchConditions.push({ phone: `+91${search}` });
             }
 
+            if (/^\d{6}$/.test(search)) {
+                searchConditions.push({ zipCode: search });
+            }
         }
 
+        if (filter === "mpt") {
+            const mptConditions = [
+                { mpt: true },
+                { "mptDegree.degreeId": { $ne: null } },
+            ];
+
+            if (searchConditions.length > 0) {
+                matchConditions.$and = [
+                    { $or: searchConditions },
+                    { $or: mptConditions }
+                ];
+            } else {
+                matchConditions.$or = mptConditions;
+            }
+        } else if (searchConditions.length > 0) {
+            matchConditions.$or = searchConditions;
+        }
+
+        if (filter === "price") {
+            sortField["home.charges"] = 1;
+        } else if (filter === "rating") {
+            sortField["rating"] = 1;
+        }
 
         const pipeline = [
             { $match: matchConditions },
-            // { $sort: sortField },
-            // { $skip: parseInt(skip) || 0 },
             {
                 $lookup: {
                     from: "specializations",
@@ -2923,35 +2922,26 @@ exports.getAllPhysios = async (req, res) => {
                 $project: {
                     reviews: 0,
                 },
-            },
+            }
         ];
 
-        // Conditionally add planType filtering
-
-
-        const populatedPhysios = await Physio.aggregate(pipeline);
-        // console.log("Matched physios count:", populatedPhysios.length);
-
-        if (CheckError === false) {
-            sortedPhysios = await addTravelDistance(populatedPhysios, lat, lng, true, false);
-        } else {
-            sortedPhysios = populatedPhysios.map((physio) => ({
-                ...physio,
-                travelDistance: `0 km`,
-                travelDuration: "N/A"
-            }));
+        if (Object.keys(sortField).length > 0) {
+            pipeline.push({ $sort: sortField });
         }
 
-        // console.log("Final physios returned:", sortedPhysios.length);
+        const result = await Physio.aggregate(pipeline);
 
-        await redisClient.set(cacheKey, JSON.stringify(sortedPhysios), { EX: CACHE_EXPIRATION.TWO_MINUTES });
+        const finalData = await addTravelDistance(result, lat, lng, true, false);
+
+        await redisClient.set(cacheKey, JSON.stringify(finalData), {
+            EX: CACHE_EXPIRATION.TWO_MINUTES,
+        });
 
         return res.json({
             status: 200,
             message: "Data returned",
-            data: sortedPhysios
+            data: finalData,
         });
-
     } catch (error) {
         console.error("Error fetching physios:", error);
         return res.status(500).json({
@@ -2961,6 +2951,7 @@ exports.getAllPhysios = async (req, res) => {
         });
     }
 };
+
 
 exports.getSinglePhysioById = async (req, res) => {
     try {

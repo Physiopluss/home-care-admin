@@ -21,6 +21,7 @@ const {
 const { GiveCashBack, CashBackCacheKey } = require('../../utility/cashBackUtility');
 const { redisClient } = require('../../utility/redisClient');
 const invoice = require("../../models/invoice");
+const { formatToIsoMicroSeconds } = require("../../utility/helper");
 
 var instance = new Razorpay({
   key_id: process.env.RAZORPAY_KEY_ID,
@@ -293,10 +294,6 @@ exports.getPatientAppointments = async (req, res) => {
     // Build query
     let query = {
       patientId: patientId,
-      "isTreatmentScheduled.isTreatmentTransfer": true
-      // ...(appointmentCompleted !== undefined && { appointmentCompleted }),
-      // ...(appointmentStatus !== undefined && { appointmentStatus }),
-      // ...(isTreatmentCompleted !== undefined && { "isTreatmentScheduled.isTreatmentCompleted": isTreatmentCompleted })
     };
 
     // Fetch appointments with populated fields
@@ -314,7 +311,7 @@ exports.getPatientAppointments = async (req, res) => {
       .populate('patientId');
 
     // Convert to plain JS objects
-    let plainAppointments = JSON.parse(JSON.stringify(appointments));
+
 
     // // Append cashback info
     // for (const apt of plainAppointments) {
@@ -336,7 +333,7 @@ exports.getPatientAppointments = async (req, res) => {
       message: 'Appointments fetched by patientId',
       success: true,
       status: 200,
-      data: plainAppointments
+      data: appointments
     });
 
   } catch (error) {
@@ -353,9 +350,6 @@ exports.getPatientTreatments = async (req, res) => {
   try {
     const {
       patientId,
-      appointmentCompleted,
-      appointmentStatus,
-      isTreatmentCompleted
     } = req.query;
 
     // Validation: Check if patientId exists and is valid
@@ -381,8 +375,6 @@ exports.getPatientTreatments = async (req, res) => {
     let query = {
       patientId: patientId,
       appointmentStatus: 1,
-      ...(appointmentCompleted !== undefined && { appointmentCompleted }),
-      ...(isTreatmentCompleted !== undefined && { "isTreatmentScheduled.isTreatmentCompleted": isTreatmentCompleted })
     };
 
     // Fetch appointments with populated fields
@@ -708,17 +700,17 @@ exports.createAppointment = async (req, res) => {
       patientId,
       physioId,
       status: 0,
-      date,
+      date: formatToIsoMicroSeconds(date),
       paymentMode: 'cash',
       patientName,
       age,
-      gender,
+      gender: gender === "Male" ? 1 : 0,
       phone: phone,
       painNotes,
       amount,
       otp: Number(generateRandomOTP()),
       isAppointmentRequest: true,
-      bookingSource: "mobile",
+      bookingSource: "website",
       couponId: couponId ? couponId : null,
       createdAt: moment().tz('Asia/Kolkata').format('yyyy-MM-DDTHH:mm:ss.SSSSSS'),
       updatedAt: moment().tz('Asia/Kolkata').format('YYYY-MM-DDTHH:mm:ss.SSSSSS'),
@@ -856,8 +848,8 @@ exports.createAppointmentRazorpay = async (req, res) => {
       painNotes,
       amount,
       couponId,
-      isRazorpay,
-      appointmentAmount,
+      latitude,
+      longitude,
       appointmentAddress
     } = req.body;
 
@@ -947,194 +939,9 @@ exports.createAppointmentRazorpay = async (req, res) => {
           appointmentAddress: appointmentAddress.toString()
         });
       }
-
+      patient.latitude = latitude
+      patient.longitude = longitude
       await patient.save();
-    }
-
-    if (isRazorpay == false || isRazorpay == "false") {
-      const appointment = new Appointment({
-        patientId,
-        isAppointmentRequest: true,
-        physioId,
-        date,
-        patientName,
-        age,
-        gender,
-        paymentMode: 'online',
-        phone: phone,
-        painNotes,
-        amount,
-        otp: Number(generateRandomOTP()),
-        paymentStatus: 1,
-        couponId: couponId ? couponId : null,
-        bookingSource: "mobile",
-      })
-
-      try {
-        await appointment.save(); // Save the appointment
-
-        // Send Notification to physio and patient
-        if (physio && patient) {
-          const serviceType = ["Home", "Clinic", "Online"][appointment.serviceType];
-
-          // Send notification to physio
-          const physioData = {
-            physioId: physio._id.toString(),
-            patientId: patient._id.toString(),
-            name: patient.fullName,
-            title: "Upcoming Consultation!",
-            body: `You have upcoming ${serviceType} consultation`,
-            type: 'appointment',
-            from: 'admin',
-            to: 'physio',
-            for: 'physio',
-            time: appointment.time,
-            date: appointment.date
-          }
-
-          // Send notification to patient
-          const patientData = {
-            physioId: physio._id.toString(),
-            patientId: patient._id.toString(),
-            name: physio.fullName,
-            title: "Upcoming Consultation!",
-            body: `You have upcoming ${serviceType} consultation`,
-            type: 'appointment',
-            from: 'admin',
-            to: 'patient',
-            for: 'patient',
-            time: appointment.time,
-            date: appointment.date
-          }
-
-          const [physioResult, patientResult] = await Promise.all([
-            sendFCMNotification(physio.deviceId, physioData),
-            sendFCMNotification(patient.deviceId, patientData)
-          ]);
-
-          if (!physioResult.success) {
-            console.log("Error sending notification to physio", physioResult);
-          }
-
-          if (!patientResult.success) {
-            console.log("Error sending notification to patient", patientResult);
-          }
-        }
-
-        console.log('Appointment and patient updated successfully');
-      } catch (error) {
-        console.error('Error saving appointment or updating patient:', error);
-      }
-
-      // Subscription  patientCount
-      const subscription = await Subscription.findById(physio.subscriptionId).populate("planId");
-
-      const planType = subscription.planId.planType
-      let transaction2
-
-      // Create the transaction for patient
-      if (patient.physioId == appointment.physioId) {
-        transaction2 = new Transaction({
-          appointmentId: appointment._id,
-          patientId: appointment.patientId,
-          appointmentAmount: appointmentAmount,
-          amount: (appointment.amount - coin),
-          planType: planType,
-          transactionId: coin ? `PHCOI_${generateRandomCode()}` : `PHONl_${generateRandomCode()}`,
-          patientTransactionType: "debit",
-          paymentMode: 'online',
-          treatment: false,
-          paymentStatus: 'paid'
-        })
-        await transaction2.save();
-
-        // Create the transaction for physio
-        const transaction = new Transaction({
-          appointmentId: appointment._id,
-          physioId: appointment.physioId,
-          appointmentAmount: appointmentAmount,
-          planType: planType,
-          amount: appointment.amount,
-          transactionId: coin ? `PHCOI_${generateRandomCode()}` : `PHONl_${generateRandomCode()}`,
-          physioTransactionType: "credit",
-          paymentMode: 'online',
-          treatment: false,
-          paymentStatus: 'paid',
-        });
-        await transaction.save();
-
-        // add amount to physio wallet
-        const physio = await Physio.findById(appointment.physioId);
-        await physio.findByIdAndUpdate(physio._id, { $inc: { wallet: coin } });
-
-        // appointment
-        appointment.transactionId = transaction2._id;
-        await appointment.save();
-
-        return res.status(200).json({
-          message: 'Appointment created',
-          success: true,
-          status: 200,
-          data: appointment
-        });
-      }
-      else {
-        const platformChargesPercentage = PhysioHelper.getPlatformCharges(planType);
-
-        let PlatformCharges = (appointmentAmount * platformChargesPercentage) / 100;
-        let gst = (PlatformCharges * 18) / 100;
-
-        await Physio.findByIdAndUpdate(
-          physio._id,
-          {
-            $inc: { wallet: (appointmentAmount - (PlatformCharges + gst)) },
-          }
-        );
-
-        const transaction = new Transaction({
-          appointmentId: appointment._id,
-          patientId: appointment.patientId,
-          physioId: appointment.physioId,
-          couponId: appointment.couponId,
-          amount: amount,
-          appointmentAmount,
-          transactionId: `PHONL_${generateRandomCode()}`,
-          physioTransactionType: "debit",
-          paymentStatus: "paid",
-          paymentMode: "online",
-          paidTo: "physio",
-          paidFor: "appointment",
-          platformCharges: PlatformCharges,
-          gstAmount: gst,
-          physioPlusAmount: PlatformCharges,
-          physioAmount: (amount - (PlatformCharges + gst)),
-        });
-        await transaction.save();
-        // Create the transaction for patient
-        // transaction2 = new Transaction({
-        //     appointmentId: appointment._id,
-        //     patientId: appointment.patientId,
-        //     appointmentAmount,
-        //     amount: appointment.amount,
-        //     planType: planType,
-        //     transactionId: coin ? `PHCOI_${generateRandomCode()}` : `PHONl_${generateRandomCode()}`,
-        //     patientTransactionType: "debit",
-        //     paymentMode: 'online',
-        //     treatment: false,
-        //     paymentStatus: 'paid'
-        // });
-        // await transaction2.save();
-
-        appointment.transactionId = transaction._id;
-        await appointment.save();
-
-        return res.status(200).json({
-          message: 'Appointment created',
-          success: true,
-          status: 200,
-          data: appointment
-        });
-      }
     }
     var options = {
       amount: amount * 100, // amount in the smallest currency unit
@@ -1147,12 +954,11 @@ exports.createAppointmentRazorpay = async (req, res) => {
         date,
         patientName,
         age,
-        gender,
+        gender: gender === "Male" ? 1 : 0,
         phone: phone,
         painNotes,
         amount,
         couponId: couponId ? couponId : null,
-        appointmentAmount,
         appointmentAddress
       }
     };
@@ -1215,17 +1021,16 @@ exports.verifyRazorpayPayment = async (req, res) => {
     const physio = await Physio.findById(payment.notes.physioId);
     const patient = await Patient.findById(payment.notes.patientId);
     const couponId = payment.notes.couponId || null;
-    const appointmentAmount = payment.notes.appointmentAmount;
+    const amount = payment.notes.amount;
     const appointmentAddres = appointmentAddress || payment.notes.appointmentAddress
 
     // Create appointment
-
     const appointment = new Appointment({
       patientId: payment.notes.patientId,
-      physioId: physio._id,
+      physioId: payment.notes.physioId,
       status: 0,
       isAppointmentRequest: true,
-      date: payment.notes.date,
+      date: formatToIsoMicroSeconds(payment.notes.date),
       time: payment.notes.time,
       patientName: payment.notes.patientName,
       age: payment.notes.age,
@@ -1233,12 +1038,12 @@ exports.verifyRazorpayPayment = async (req, res) => {
       phone: payment.notes.phone,
       otp: Number(generateRandomOTP()),
       painNotes: payment.notes.painNotes,
-      amount: appointmentAmount,
+      amount: amount,
       timeInString: payment.notes.timeInString,
       orderId: payment.id,
       paymentMode: 'online',
       paymentStatus: 1,
-      bookingSource: "mobile",
+      bookingSource: "website",
       couponId,
       adminAmount: payment.notes.amount,
     });
@@ -1248,19 +1053,19 @@ exports.verifyRazorpayPayment = async (req, res) => {
 
       if (patient) {
         // Update the patient document with the new appointment address
-        if (patient.appointmentAddress !== appointmentAddress.toString()) {
+        if (patient.appointmentAddress !== appointmentAddress?.toString()) {
           patient.appointmentAddress = appointmentAddress;
         }
 
         // Check if address already exists in patientAddresses
         let isAddressExists = patient.patientAddresses.some((entry) => {
-          return entry.appointmentAddress === appointmentAddress.toString();
+          return entry.appointmentAddress === appointmentAddress?.toString();
         });
 
         // If not, push the new address
         if (!isAddressExists) {
           patient.patientAddresses.push({
-            appointmentAddress: appointmentAddress.toString()
+            appointmentAddress: appointmentAddress?.toString()
           });
         }
 
@@ -1276,11 +1081,11 @@ exports.verifyRazorpayPayment = async (req, res) => {
     // // Platform charges case
     // const platformChargesPercentage = PhysioHelper.getPlatformCharges(planType);
     // const amount = payment.amount / 100;
-    const platformCharges = (appointmentAmount * 22) / 100;
+    const platformCharges = (amount * 22) / 100;
     const gst = (platformCharges * 18) / 100;
 
     await Physio.findByIdAndUpdate(physio._id, {
-      $inc: { wallet: (appointmentAmount - (platformCharges + gst)) }
+      $inc: { wallet: (amount - (platformCharges + gst)) }
     });
 
     const transaction = await Transaction.create({
@@ -1290,7 +1095,6 @@ exports.verifyRazorpayPayment = async (req, res) => {
       appointmentId: appointment._id,
       couponId: payment.notes.couponId,
       amount: payment.amount / 100,
-      appointmentAmount: appointmentAmount,
       transactionId: `PHONL_${generateRandomCode()}`,
       patientTransactionType: "debit",
       physioTransactionType: "credit",
@@ -1301,7 +1105,7 @@ exports.verifyRazorpayPayment = async (req, res) => {
       platformCharges: platformCharges,
       gstAmount: gst,
       physioPlusAmount: platformCharges,
-      physioAmount: (payment.amount - (platformCharges + gst)),
+      physioAmount: (amount - (platformCharges + gst)),
     });
     appointment.transactionId = transaction._id;
     await appointment.save();
@@ -1707,7 +1511,7 @@ exports.verifyTreatmentPayment = async (req, res) => {
       populate: { path: 'planId' }
     }).lean();
 
-     const patient = await Patient.findById(appointment.patientId)
+    const patient = await Patient.findById(appointment.patientId)
 
     if (!physio && !patient) {
       return res.status(404).json({ message: 'Physio not found', success: false, status: 404 });
@@ -1742,6 +1546,7 @@ exports.verifyTreatmentPayment = async (req, res) => {
       physioAmount: Number(amount) - (platformCharges + gst)
     });
 
+  
     const cacheKey = CashBackCacheKey()
     let patientCount = await redisClient.get(cacheKey);
     patientCount = parseInt(patientCount) || 0;
@@ -1768,16 +1573,17 @@ exports.verifyTreatmentPayment = async (req, res) => {
         let obj = {
           userId: appointment.patientId || null,
           appointmentId: appointment._id || null,
-          transactionId: transaction._id || null,
+          transactionId: CheckTransaction._id || null,
         }
         if (patientCount === 15) {
           obj.rewardPercentage = "70%"
-          obj.rewardAmount = (Number(paymentAmount || 0) * 70) / 100
+          obj.rewardAmount = (Number(amount || 0) * 70) / 100
+
           CashBackData = await GiveCashBack(obj);
           patientCount = 0; // reset after 15th
         } else {
           obj.rewardPercentage = "5%"
-          obj.rewardAmount = (Number(paymentAmount || 0) * 5) / 100
+          obj.rewardAmount = (Number(amount || 0) * 5) / 100
           CashBackData = await GiveCashBack(obj);
         }
 
@@ -1789,7 +1595,6 @@ exports.verifyTreatmentPayment = async (req, res) => {
 
       }
     }
-
 
     return res.status(200).json({
       message: "Payment verified successfully",

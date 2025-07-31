@@ -12,6 +12,7 @@ const { createAppointmentInvoice } = require('../app/appointmentController');
 const coupon = require('../../models/coupon');
 const { sendFCMNotification } = require('../../services/fcmService');
 const invoice = require('../../models/invoice');
+const { formatToIsoMicroSeconds } = require('../../utility/helper');
 const generateRandomOTP = () => {
     return Math.floor(1000 + Math.random() * 9000);
 };
@@ -575,7 +576,7 @@ exports.addAppointment = async (req, res) => {
             patientId: patient._id,
             physioId,
             status: 0,
-            date,
+            date: formatToIsoMicroSeconds(date),
             patientName,
             age,
             gender,
@@ -1063,14 +1064,16 @@ exports.getAllTreatmentsData = async (req, res) => {
         } = req.query;
 
         let filter = {
-            appointmentStatus: 1,
-            "isTreatmentScheduled.isTreatmentTransfer": true,
-            patientId: { $ne: null },
-            physioId: { $ne: null },
+            // appointmentStatus: 1,
+            // "isTreatmentScheduled.isTreatmentTransfer": true,
+            // patientId: { $ne: null },
+            // physioId: { $ne: null },
             // 'isTreatmentScheduled.isTreatmentCompleted': false
         }
 
-        const treatments = await Appointment.find(filter).populate('patientId physioId').sort({ createdAt: -1 });
+        const treatments = await Appointment.find({ "isTreatmentScheduled.isTreatmentTransfer": true }).populate('patientId physioId').sort({ createdAt: -1 });
+
+        console.log(treatments);
 
 
         return res.status(200).json({
@@ -1407,10 +1410,10 @@ exports.completeTreatment = async (req, res) => {
 };
 
 exports.acceptTreatmentRequest = async (req, res) => {
+    console.log(JSON.stringify(req.body.payload.isTreatmentScheduled.treatmentDate))
+
     try {
         const { id, payload } = req.body;
-        console.log(req.body);
-
 
         if (!id || !payload) {
             return res.status(400).json({
@@ -1436,10 +1439,15 @@ exports.acceptTreatmentRequest = async (req, res) => {
         }
 
         // Conditionally update only if present
-        if (payload.isTreatmentScheduled.treatmentDate) {
-            appointment.isTreatmentScheduled.treatmentDate = payload.isTreatmentScheduled.treatmentDate;
-        }
+        const treatmentDate = payload.isTreatmentScheduled.treatmentDate;
 
+        if (Array.isArray(treatmentDate)) {
+            // array of objects
+            appointment.isTreatmentScheduled.treatmentDate = treatmentDate.map(item => ({
+                ...item,
+                date: formatToIsoMicroSeconds(item.date)
+            }));
+        }
         if (typeof payload.isTreatmentScheduled.amount !== "undefined") {
             appointment.isTreatmentScheduled.amount = payload.isTreatmentScheduled.amount;
         }
@@ -1616,10 +1624,8 @@ exports.completeConsultation = async (req, res) => {
         // }
 
         // Generate invoice and send chat message
-        if (appointment.paymentMode === "online") {
-            await createAppointmentInvoice(id);
-        }
 
+        await createAppointmentInvoice(id)
         return res.status(200).json({
             message: 'Appointment Completed',
             success: true,
